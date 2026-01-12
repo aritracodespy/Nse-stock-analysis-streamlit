@@ -21,9 +21,12 @@ from simpleeval import simple_eval
 import requests
 
 from datetime import datetime, timezone, timedelta
+from langchain.messages import HumanMessage  #, AIMessage as LCHMessage
 
 localStorage = LocalStorage()
-checkpointer = InMemorySaver()
+
+# Store checkpointer in session state to persist across reruns
+
 
 # =========================
 # SESSION STATE
@@ -40,6 +43,8 @@ if "exchange_rate" not in st.session_state:
     st.session_state.exchange_rate = ""
 if "thread_id" not in st.session_state:
     st.session_state.thread_id = f"stock_chat_{uuid.uuid4().hex}"
+if "checkpointer" not in st.session_state:
+    st.session_state.checkpointer = InMemorySaver()
 
 
 # =========================
@@ -358,7 +363,7 @@ Today's Date: {(datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)).str
 # =========================
 # AGENT
 # =========================
-def stock_agent(model: str, base_url: str, api_key: str, thread_id: str, message: dict) -> Dict[str, Any]:
+def stock_agent(model: str, base_url: str, api_key: str, thread_id: str, message: str) -> Dict[str, Any]:
     try:
         llm = ChatOpenAI(
             model=model.strip(),
@@ -371,10 +376,13 @@ def stock_agent(model: str, base_url: str, api_key: str, thread_id: str, message
             model=llm,
             tools=[get_stocks_data_tool, news_tool, calculator_tool],
             system_prompt=SYSTEM_PROMPT,
-            checkpointer=checkpointer
+            checkpointer=st.session_state.checkpointer
         )
 
-        response = agent.invoke({"messages": [message]}, config={"configurable": {"thread_id": thread_id}})
+        messages = []
+        messages.append(HumanMessage(content=message))
+
+        response = agent.invoke({"messages": messages}, config={"configurable": {"thread_id": thread_id}})
 
         content = response["messages"][-1].content.strip()
 
@@ -423,7 +431,7 @@ if prompt := st.chat_input("Ask about NSE stocks..."):
                 api_key=st.session_state.api_key,
                 base_url=st.session_state.base_url,
                 thread_id=st.session_state.thread_id,
-                message={"role": "user", "content": prompt}
+                message=prompt
             )
 
         if "error" in result:
