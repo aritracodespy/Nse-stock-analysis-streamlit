@@ -1,7 +1,3 @@
-
-# =========================
-# STREAMLIT + AGENT APP
-# =========================
 import streamlit as st
 from streamlit_local_storage import LocalStorage
 from langchain_openai import ChatOpenAI
@@ -52,17 +48,23 @@ if "checkpointer" not in st.session_state:
 # =========================
 with st.sidebar:
     st.title("⚙️ Settings")
-    st.session_state.model = st.text_input("Model", value=st.session_state.model, autocomplete="off")
-    st.session_state.api_key = st.text_input("API Key", type="password",  autocomplete="off")
-    st.session_state.base_url = st.text_input("Base URL", value=st.session_state.base_url, autocomplete="off")
+    model = st.text_input("Model", value=st.session_state.model, autocomplete="off")
+    api_key = st.text_input("API Key", type="password",  autocomplete="off")
+    base_url = st.text_input("Base URL", value=st.session_state.base_url, autocomplete="off")
 
+    if st.button("Save Credentials",icon="📌",width="stretch"):
+        st.session_state.model = model 
+        st.session_state.api_key = api_key 
+        st.session_state.base_url = base_url 
+
+        st.success("Credentials saved to sessions storage")
 
     if st.session_state.base_url and st.session_state.model:
         localStorage.setItem("base_url", st.session_state.base_url, key="set_base_url")
         localStorage.setItem("model", st.session_state.model, key="set_model")
 
     st.divider()
-    if st.button("New Chat", icon="🆕", width="stretch"):
+    if st.button("New Chat", icon="✨", width="stretch"):
         st.session_state.response = []
         st.session_state.thread_id = f"stock_chat_{uuid.uuid4().hex}"
         st.rerun()
@@ -72,7 +74,7 @@ with st.sidebar:
 # UI
 # =========================
 st.title("💬 FinSight AI")
-st.caption("Institutional-grade NSE Equity Research Agent")
+st.caption("NSE Equity Research Agent")
 
 with st.expander("ℹ️ About, Disclaimer & Privacy"):
     st.markdown("""
@@ -255,18 +257,18 @@ def get_stocks_data_tool(symbols: List[str]) -> List[Dict[str, Any]]:
 
 
 @st.cache_data(ttl=900, show_spinner=False)  # 15 min
-def news_tool(query: str) -> Dict[str, Any]:
+def web_search_tool(query: str) -> Dict[str, Any]:
     """
-    Searches for recent news articles related to a query.
+    Performs a real-time web-search for a query.
     
     Args:
         query: Search query string.
         
     Returns:
-        Dictionary containing news results with title, body, source, and URL.
+        Dictionary containing search results on success or error on failure.
     """
     try:
-        results = DDGS(timeout=5).news(
+        results = DDGS(timeout=5).text(
             query,
             region="in-en",
             max_results=10,
@@ -276,20 +278,7 @@ def news_tool(query: str) -> Dict[str, Any]:
         if not results:
             return {"error": "No news found"}
 
-        required = ["title", "body", "date", "source", "url"]
-        data = [
-            {
-                "title": r["title"],
-                "body": r["body"],
-                "date": r["date"],
-                "source": r["source"],
-                "url": r["url"]
-            }
-            for r in results
-            if all(r.get(k) for k in required)
-        ]
-
-        return {"results": data}
+        return {"results": results}
     except Exception as e:
         return {"error": str(e)}
 
@@ -336,28 +325,29 @@ if not st.session_state.exchange_rate:
     st.session_state.exchange_rate = usd_inr()
 
 SYSTEM_PROMPT = f"""
-You are **FinSight AI**, an institutional-grade Equity Research Analyst specializing in **NSE-listed Indian equities**.  
+You are **FinSight AI**, an institutional-grade Equity Research Analyst specializing in **NSE-listed Indian equities**.
 
 Today's Date: {(datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)).strftime("%Y-%m-%d")}
 {st.session_state.exchange_rate}
 
 ### Rules
-- Always call **get_stocks_data_tool** before discussing price, valuation, fundamentals, or indicators.  
-  - Use Indian currency to showcase the values for price, market cap etc if not asked for.
-- Use **news_tool** for recent events, sentiment, or market developments.  
-  - When using news_tool, always include: **article title, publisher, and URL**.  
-- For any arithmetic or numeric calculation, always call **calculator_tool**. Do not calculate manually.  
+- Always call **get_stocks_data_tool** before discussing price, valuation, fundamentals, or technical indicators.  
+  - Use Indian currency (INR) for price, market cap, and financial figures unless explicitly requested otherwise.
+- Use **web_search_tool** for recent events, corporate actions, regulatory updates, macro developments, or market sentiment.  
+  - When using web_search_tool, always include: **source title, publisher/domain, and URL**.
+- For any arithmetic or numeric calculation, always call **calculator_tool**. Do not calculate manually.
 
 ### Style
 - Maintain a **neutral, institutional tone** suitable for professional equity research.  
 - Highlight **tickers** and **key metrics** in bold for clarity.  
-- Present insights in **bullet points** and **short paragraphs** only.  
-- Do **not** use tables, charts, or complex Markdown formatting.  
+- Present insights using **bullet points** and **short paragraphs** only.  
+- Do **not** use tables, charts, or complex Markdown formatting.
 
 ### Output
-- Provide concise, fact-based analysis. 
-- Focus on clarity, accuracy, and professional readability.  
+- Provide concise, fact-based analysis.  
+- Focus on clarity, accuracy, and professional readability.
 """
+
 
 
 # =========================
@@ -374,7 +364,7 @@ def stock_agent(model: str, base_url: str, api_key: str, thread_id: str, message
 
         agent = create_agent(
             model=llm,
-            tools=[get_stocks_data_tool, news_tool, calculator_tool],
+            tools=[get_stocks_data_tool, web_search_tool, calculator_tool],
             system_prompt=SYSTEM_PROMPT,
             checkpointer=st.session_state.checkpointer
         )
