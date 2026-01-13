@@ -156,7 +156,6 @@ def build_llm_stock_payload(info: dict | None, tv: dict | None) -> dict:
         payload["company overview"] = {
             "company": {
                 "name": info.get("longName"),
-                "symbol": info.get("symbol"),
                 "sector": info.get("sector"),
                 "industry": info.get("industry"),
                 "country": info.get("country"),
