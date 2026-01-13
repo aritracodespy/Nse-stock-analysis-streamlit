@@ -183,62 +183,35 @@ def build_llm_stock_payload(info: dict | None, tv: dict | None) -> dict:
                 "avg_volume_3m": info.get("averageDailyVolume3Month"),
             },
 
-            "valuation": {
-                "trailing_pe": info.get("trailingPE"),
-                "forward_pe": info.get("forwardPE"),
-                "peg_ratio": info.get("trailingPegRatio"),
-                "price_to_book": info.get("priceToBook"),
-                "price_to_sales": info.get("priceToSalesTrailing12Months"),
-                "enterprise_value": info.get("enterpriseValue"),
-                "ev_to_revenue": info.get("enterpriseToRevenue"),
-                "ev_to_ebitda": info.get("enterpriseToEbitda"),
-            },
+            "core_metrics": {
+                "valuation": {
+                    "forward_pe": info.get("forwardPE"),
+                    "ev_to_ebitda": info.get("enterpriseToEbitda"),
+                },
 
-            "profitability": {
-                "profit_margin": info.get("profitMargins"),
-                "operating_margin": info.get("operatingMargins"),
-                "gross_margin": info.get("grossMargins"),
-                "ebitda_margin": info.get("ebitdaMargins"),
-                "roe": info.get("returnOnEquity"),
-                "roa": info.get("returnOnAssets"),
-            },
+                "quality": {
+                    "roe": info.get("returnOnEquity"),
+                    "operating_margin": info.get("operatingMargins"),
+                },
 
-            "growth": {
-                "revenue_growth": info.get("revenueGrowth"),
-                "earnings_growth": info.get("earningsGrowth"),
-                "quarterly_earnings_growth": info.get("earningsQuarterlyGrowth"),
-                "eps_ttm": info.get("epsTrailingTwelveMonths"),
-                "eps_forward": info.get("epsForward"),
-            },
+                "growth": {
+                    "revenue_growth": info.get("revenueGrowth"),
+                    "earnings_growth": info.get("earningsGrowth"),
+                },
 
-            "financial_health": {
-                "total_cash": info.get("totalCash"),
-                "total_debt": info.get("totalDebt"),
-                "debt_to_equity": info.get("debtToEquity"),
-                "current_ratio": info.get("currentRatio"),
-                "quick_ratio": info.get("quickRatio"),
-                "free_cash_flow": info.get("freeCashflow"),
-                "operating_cash_flow": info.get("operatingCashflow"),
-            },
+                "financial_risk": {
+                    "debt_to_equity": info.get("debtToEquity"),
+                    "free_cash_flow": info.get("freeCashflow"),
+                },
 
-            "dividends": {
-                "dividend_rate": info.get("dividendRate"),
-                "dividend_yield": info.get("dividendYield"),
-                "payout_ratio": info.get("payoutRatio"),
-                "five_year_avg_yield": info.get("fiveYearAvgDividendYield"),
-                "last_dividend": info.get("lastDividendValue"),
+                "shareholder_return": {
+                    "dividend_yield": info.get("dividendYield"),
+                    "institutional_holding_pct": info.get("heldPercentInstitutions"),
+                }
             },
+        }
 
-            "ownership_governance": {
-                "insider_holding_pct": info.get("heldPercentInsiders"),
-                "institutional_holding_pct": info.get("heldPercentInstitutions"),
-                "overall_risk": info.get("overallRisk"),
-                "board_risk": info.get("boardRisk"),
-                "compensation_risk": info.get("compensationRisk"),
-                "shareholder_rights_risk": info.get("shareHolderRightsRisk"),
-            },
-
-            "analyst_sentiment": {
+        payload["analyst_sentiment"] = {
                 "recommendation": info.get("recommendationKey"),
                 "recommendation_mean": info.get("recommendationMean"),
                 "analyst_count": info.get("numberOfAnalystOpinions"),
@@ -248,15 +221,9 @@ def build_llm_stock_payload(info: dict | None, tv: dict | None) -> dict:
                     "high": info.get("targetHighPrice"),
                 },
             },
-        }
 
     if tv:
         payload["technicals"] = {
-            "market_bias": {
-                "recommend_all": tv.get("Recommend.All"),
-                "recommend_ma": tv.get("Recommend.MA"),
-                "recommend_other": tv.get("Recommend.Other"),
-            },
 
             "momentum": {
                 "rsi": tv.get("RSI"),
@@ -458,20 +425,16 @@ if not st.session_state.exchange_rate:
 SYSTEM_PROMPT = f"""
 You are **FinBuddy**, a friendly and chill AI-powered stock market assistant focused on **NSE-listed Indian equities**.
 
-Your role is to help users understand stocks using fundamentals, technical indicators, and recent market developments in a simple, unbiased, and data-driven manner.
-
 Today's Date: {(datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)).strftime("%Y-%m-%d")}
 {st.session_state.exchange_rate}
 
 ### Core Rules
 - Always call **get_stocks_data_tool** before discussing price, valuation, fundamentals, or technical indicators.
-- Use **recommendation metrics, market_bias, and target_price** from `get_stocks_data_tool` to provide a clear verdict (strong-buy / buy / neutral / sell / strong-sell) with price levels.
+- Use **analyst_sentiment** from `get_stocks_data_tool` to provide a clear verdict (strong-buy / buy / neutral / sell / strong-sell) with price levels.
 - If the tool returns an error or `ok: false`, inform the user that data could not be retrieved and ask for a valid NSE symbol. Do not proceed further.
 - Use **INR** for all prices and financial figures unless stated otherwise.
 - Do not repeat raw data; add interpretation and context.
 - If any metric is missing or null, state **“Data not available”**. Never assume or hallucinate values.
-- Use **web_search_tool** for recent news, corporate actions, regulations, macro trends, or sentiment. Always include **source title / publisher / domain**.
-- If no relevant news is found, state this explicitly.
 - For sector or stock recommendations, rely only on data from the **web search tool**.
 - All numeric calculations must use **calculator_tool**.
 - Keep your response under 250 words.
@@ -482,7 +445,6 @@ Today's Date: {(datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)).str
 - Use bullet points and short paragraphs only.
 - No tables, charts, or complex formatting.
 - Prioritize clarity, accuracy, and concise analysis.
-
 """
 
 # =========================
